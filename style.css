@@ -1,3 +1,6 @@
+/* style.css */
+
+/* Style global */
 body {
   font-family: Arial, sans-serif;
   background: #f0f8ff;
@@ -6,23 +9,37 @@ body {
   padding: 0;
 }
 
+/* Header */
 header {
   background: #74b9ff;
   color: white;
   padding: 2rem;
 }
 
+/* Main sections */
 main {
   padding: 2rem;
 }
 
+/* Footer */
 footer {
   background: #dfe6e9;
   padding: 1rem;
   font-size: 0.8rem;
 }
 
+/* Section du graphique */
 #chartSection {
   max-width: 800px;
+  margin: 0 auto 2rem auto;
+}
+
+/* Section d'animation fluide */
+#fluidSection {
+  position: relative;
+  width: 100%;
+  height: 300px; /* Hauteur pour l'animation fluide */
   margin: 0 auto;
+  border: 2px solid #74b9ff;
+  background: #fff;
 }
