@@ -1,9 +1,13 @@
-/* Réinitialisation et styles globaux */
+/* style.css */
+
+/* Réinitialisation */
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
+
+/* Corps de page */
 body {
   font-family: 'Montserrat', sans-serif;
   background: linear-gradient(135deg, #141E30, #243B55);
@@ -41,16 +45,16 @@ nav ul li a:hover {
 
 /* Header */
 header {
-  padding: 4rem 2rem 2rem; /* espace pour le menu fixe */
+  padding: 4rem 2rem 2rem;
   background: rgba(20, 30, 48, 0.85);
   border-bottom: 2px solid #00F0FF;
   margin-top: 60px; /* pour compenser le menu fixe */
 }
 header h1 {
   font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
   letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
 }
 header p {
   font-size: 1.2rem;
@@ -74,10 +78,34 @@ section h2 {
   color: #FF00FF;
 }
 
-/* Canvas styles */
+/* Pour les canvas, s'assurer qu'ils s'adaptent bien */
 canvas {
   width: 100%;
   height: auto;
+}
+
+/* Style des paragraphes sources */
+p.source {
+  font-size: 0.9rem;
+  color: #aaaaaa;
+  margin-top: 0.5rem;
+}
+
+/* Section Sources */
+#sources-section ul {
+  list-style: none;
+  padding: 1rem;
+}
+#sources-section li {
+  margin: 0.5rem 0;
+}
+#sources-section a {
+  color: #00F0FF;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+#sources-section a:hover {
+  color: #FF00FF;
 }
 
 /* Footer */
