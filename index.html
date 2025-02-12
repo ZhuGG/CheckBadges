@@ -7,29 +7,50 @@
   <link rel="stylesheet" href="style.css">
   <!-- Google Fonts pour une typo moderne -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Chart.js pour le graphique -->
+  <!-- Chart.js pour les graphiques -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- GSAP pour les animations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
 <body>
+  <!-- Menu de navigation -->
+  <nav>
+    <ul>
+      <li><a href="#graph-section">Graphique Biomasse</a></li>
+      <li><a href="#graph2-section">Graphique Pollinisateurs</a></li>
+      <li><a href="#fluid-section">Animation Fluide</a></li>
+    </ul>
+  </nav>
+
   <header>
     <h1>Déclin des Insectes en Europe</h1>
     <p>Visualisation interactive & immersive</p>
   </header>
+
   <main>
-    <!-- Section du graphique -->
+    <!-- Graphique 1 : Biomasse relative -->
     <section id="graph-section">
+      <h2>Évolution de la Biomasse Relative (%)</h2>
       <canvas id="insectChart"></canvas>
     </section>
-    <!-- Section de l'animation fluide -->
+
+    <!-- Graphique 2 : Insectes pollinisateurs -->
+    <section id="graph2-section">
+      <h2>Diminution des Pollinisateurs (%)</h2>
+      <canvas id="pollinatorChart"></canvas>
+    </section>
+
+    <!-- Animation fluide : niveau de biomasse -->
     <section id="fluid-section">
+      <h2>Niveau de Biomasse Restante</h2>
       <canvas id="fluidCanvas"></canvas>
     </section>
   </main>
+
   <footer>
-    <p>&copy; 2025 - Données issues d'études sur le déclin des insectes en Europe</p>
+    <p>&copy; 2025 - Données issues de diverses études sur le déclin des insectes en Europe</p>
   </footer>
+
   <script src="script.js"></script>
 </body>
 </html>
