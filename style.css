@@ -1,26 +1,50 @@
-/* style.css */
-
-/* Réinitialisation et box-sizing */
+/* Réinitialisation et styles globaux */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
-
-/* Corps de page */
 body {
   font-family: 'Montserrat', sans-serif;
   background: linear-gradient(135deg, #141E30, #243B55);
   color: #E0E0E0;
   text-align: center;
-  line-height: 1.6;
+  scroll-behavior: smooth;
 }
 
-/* En-tête */
+/* Menu de navigation */
+nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  background: rgba(20, 30, 48, 0.9);
+  z-index: 1000;
+}
+nav ul {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+nav ul li {
+  margin: 0 1rem;
+}
+nav ul li a {
+  color: #00F0FF;
+  text-decoration: none;
+  font-weight: 700;
+  transition: color 0.3s;
+}
+nav ul li a:hover {
+  color: #FF00FF;
+}
+
+/* Header */
 header {
-  padding: 2rem;
+  padding: 4rem 2rem 2rem; /* espace pour le menu fixe */
   background: rgba(20, 30, 48, 0.85);
   border-bottom: 2px solid #00F0FF;
+  margin-top: 60px; /* pour compenser le menu fixe */
 }
 header h1 {
   font-size: 2.5rem;
@@ -33,42 +57,30 @@ header p {
   color: #00F0FF;
 }
 
-/* Contenu principal */
+/* Main sections */
 main {
   padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
 }
-
-/* Section du graphique */
-#graph-section {
+section {
+  margin: 3rem auto;
   max-width: 800px;
-  margin: 0 auto;
   padding: 1rem;
   border: 2px solid #00F0FF;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
 }
-
-/* Section de l'animation fluide */
-#fluid-section {
-  max-width: 800px;
-  margin: 0 auto;
-  height: 300px;
-  padding: 1rem;
-  border: 2px solid #00F0FF;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+section h2 {
+  margin-bottom: 1rem;
+  color: #FF00FF;
 }
 
-/* Canvas */
+/* Canvas styles */
 canvas {
   width: 100%;
   height: auto;
 }
 
-/* Pied de page */
+/* Footer */
 footer {
   padding: 1rem;
   background: rgba(20, 30, 48, 0.85);
