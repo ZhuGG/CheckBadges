@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Déclin des Insectes - Visualisation Interactive</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js pour les graphiques -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- GSAP pour les animations dynamiques -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1 id="mainTitle">Déclin des Insectes en Europe</h1>
+    <p id="subTitle">Visualisation basée sur des données réelles (Hallmann et al., 2017)</p>
+  </header>
+
+  <main>
+    <section id="chartSection">
+      <canvas id="insectChart"></canvas>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 - Données extraites de Hallmann et al. (2017) :contentReference[oaicite:1]{index=1}</p>
+  </footer>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
