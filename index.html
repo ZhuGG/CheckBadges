@@ -3,35 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Déclin des Insectes - Visualisation Fluide</title>
+  <title>Déclin des Insectes - Visualisation Avant-Gardiste</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Chart.js pour les graphiques -->
+  <!-- Google Fonts pour une typo moderne -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Chart.js pour le graphique -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- GSAP pour les animations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
 <body>
   <header>
-    <h1 id="mainTitle">Déclin des Insectes en Europe</h1>
-    <p id="subTitle">Visualisation ludique basée sur la mécanique des fluides</p>
+    <h1>Déclin des Insectes en Europe</h1>
+    <p>Visualisation interactive & immersive</p>
   </header>
-
   <main>
     <!-- Section du graphique -->
-    <section id="chartSection">
-      <canvas id="insectChart" width="800" height="400"></canvas>
+    <section id="graph-section">
+      <canvas id="insectChart"></canvas>
     </section>
-
-    <!-- Section d'animation fluide -->
-    <section id="fluidSection">
+    <!-- Section de l'animation fluide -->
+    <section id="fluid-section">
       <canvas id="fluidCanvas"></canvas>
     </section>
   </main>
-
   <footer>
-    <p>&copy; 2025 - Données extraites de Hallmann et al. (2017)</p>
+    <p>&copy; 2025 - Données issues d'études sur le déclin des insectes en Europe</p>
   </footer>
-
   <script src="script.js"></script>
 </body>
 </html>
