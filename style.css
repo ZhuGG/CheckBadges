@@ -1,45 +1,78 @@
 /* style.css */
 
-/* Style global */
-body {
-  font-family: Arial, sans-serif;
-  background: #f0f8ff;
-  text-align: center;
+/* Réinitialisation et box-sizing */
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-/* Header */
-header {
-  background: #74b9ff;
-  color: white;
-  padding: 2rem;
+/* Corps de page */
+body {
+  font-family: 'Montserrat', sans-serif;
+  background: linear-gradient(135deg, #141E30, #243B55);
+  color: #E0E0E0;
+  text-align: center;
+  line-height: 1.6;
 }
 
-/* Main sections */
+/* En-tête */
+header {
+  padding: 2rem;
+  background: rgba(20, 30, 48, 0.85);
+  border-bottom: 2px solid #00F0FF;
+}
+header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+header p {
+  font-size: 1.2rem;
+  color: #00F0FF;
+}
+
+/* Contenu principal */
 main {
   padding: 2rem;
-}
-
-/* Footer */
-footer {
-  background: #dfe6e9;
-  padding: 1rem;
-  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 /* Section du graphique */
-#chartSection {
+#graph-section {
   max-width: 800px;
-  margin: 0 auto 2rem auto;
+  margin: 0 auto;
+  padding: 1rem;
+  border: 2px solid #00F0FF;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
 }
 
-/* Section d'animation fluide */
-#fluidSection {
-  position: relative;
-  width: 100%;
-  height: 300px; /* Hauteur pour l'animation fluide */
+/* Section de l'animation fluide */
+#fluid-section {
+  max-width: 800px;
   margin: 0 auto;
-  border: 2px solid #74b9ff;
-  background: #fff;
+  height: 300px;
+  padding: 1rem;
+  border: 2px solid #00F0FF;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Canvas */
+canvas {
+  width: 100%;
+  height: auto;
+}
+
+/* Pied de page */
+footer {
+  padding: 1rem;
+  background: rgba(20, 30, 48, 0.85);
+  font-size: 0.9rem;
+  border-top: 2px solid #00F0FF;
+  margin-top: 2rem;
 }
