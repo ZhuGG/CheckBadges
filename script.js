@@ -5,15 +5,15 @@ document.addEventListener("DOMContentLoaded", function() {
   gsap.from("header", { duration: 1, y: -50, opacity: 0 });
   gsap.from("main", { duration: 1, opacity: 0, delay: 0.5 });
   gsap.from("footer", { duration: 1, opacity: 0, delay: 1 });
+  gsap.from("nav", { duration: 1, opacity: 0, delay: 0.2 });
 
-  // --- Graphique avec Chart.js ---
-  const ctx = document.getElementById("insectChart").getContext("2d");
-  // Données enrichies : évolution sur plusieurs décennies (exemple hypothétique)
-  const chartData = {
+  // --- Graphique 1 : Biomasse relative ---
+  const ctx1 = document.getElementById("insectChart").getContext("2d");
+  const biomasseData = {
     labels: ["1990", "2000", "2010", "2020"],
     datasets: [{
       label: "Biomasse relative (%)",
-      data: [100, 80, 50, 20],
+      data: [100, 85, 60, 30],
       backgroundColor: "rgba(255, 99, 132, 0.2)",
       borderColor: "rgba(255, 99, 132, 1)",
       borderWidth: 2,
@@ -21,19 +21,16 @@ document.addEventListener("DOMContentLoaded", function() {
       fill: true
     }]
   };
-  const chartConfig = {
+  const chart1 = new Chart(ctx1, {
     type: "line",
-    data: chartData,
+    data: biomasseData,
     options: {
       responsive: true,
       plugins: {
-        legend: {
-          labels: { color: "#E0E0E0" },
-          position: "top"
-        },
+        legend: { labels: { color: "#E0E0E0" }, position: "top" },
         title: {
           display: true,
-          text: "Évolution du Déclin des Insectes en Europe",
+          text: "Évolution de la Biomasse Relative",
           color: "#E0E0E0",
           font: { size: 18 }
         }
@@ -41,24 +38,69 @@ document.addEventListener("DOMContentLoaded", function() {
       scales: {
         x: {
           ticks: { color: "#E0E0E0" },
-          grid: { color: "rgba(255, 255, 255, 0.1)" }
+          grid: { color: "rgba(255,255,255,0.1)" }
         },
         y: {
           beginAtZero: true,
+          max: 110,
           ticks: { color: "#E0E0E0" },
-          grid: { color: "rgba(255, 255, 255, 0.1)" },
-          max: 110
+          grid: { color: "rgba(255,255,255,0.1)" }
         }
       }
     }
-  };
-  new Chart(ctx, chartConfig);
+  });
 
-  // --- Animation fluide inspirée de la mécanique des fluides ---
+  // --- Graphique 2 : Pollinisateurs ---
+  const ctx2 = document.getElementById("pollinatorChart").getContext("2d");
+  const pollinatorData = {
+    labels: ["1990", "2000", "2010", "2020"],
+    datasets: [{
+      label: "Insectes pollinisateurs (%)",
+      data: [100, 75, 45, 15],
+      backgroundColor: "rgba(0, 200, 255, 0.2)",
+      borderColor: "rgba(0, 200, 255, 1)",
+      borderWidth: 2,
+      tension: 0.4,
+      fill: true
+    }]
+  };
+  new Chart(ctx2, {
+    type: "line",
+    data: pollinatorData,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: "#E0E0E0" }, position: "top" },
+        title: {
+          display: true,
+          text: "Diminution des Insectes Pollinisateurs",
+          color: "#E0E0E0",
+          font: { size: 18 }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#E0E0E0" },
+          grid: { color: "rgba(255,255,255,0.1)" }
+        },
+        y: {
+          beginAtZero: true,
+          max: 110,
+          ticks: { color: "#E0E0E0" },
+          grid: { color: "rgba(255,255,255,0.1)" }
+        }
+      }
+    }
+  });
+
+  // --- Animation fluide inspirée par la mécanique des fluides ---
+  // Nous allons simuler un niveau de "remplissage" basé sur la donnée de biomasse en 2020.
+  // Par exemple, pour le graphique 1, la valeur de 2020 est 30% (donc 30% du canvas sera rempli)
+  const latestBiomasse = biomasseData.datasets[0].data[biomasseData.datasets[0].data.length - 1]; // 30%
+  
   const fluidCanvas = document.getElementById("fluidCanvas");
   const fluidCtx = fluidCanvas.getContext("2d");
 
-  // Ajustement de la taille du canvas en fonction du conteneur
   function resizeFluidCanvas() {
     fluidCanvas.width = fluidCanvas.clientWidth;
     fluidCanvas.height = fluidCanvas.clientHeight;
@@ -72,25 +114,25 @@ document.addEventListener("DOMContentLoaded", function() {
     const height = fluidCanvas.height;
     fluidCtx.clearRect(0, 0, width, height);
 
-    // Paramètres de l'onde fluide
-    const amplitude = 40;    // Amplitude de la vague
-    const frequency = 0.02;  // Fréquence
-    const speed = 0.03;      // Vitesse de défilement
-    const offset = height / 2;
+    // Calcul du niveau de remplissage en fonction de la donnée (ex. 30% de biomasse restante)
+    const baseline = height * (1 - (latestBiomasse / 100)); // plus haut = moins de biomasse
+
+    // Paramètres de l'onde
+    const amplitude = 15;      // Amplitude de l'onde
+    const frequency = 0.02;    // Fréquence
+    const speed = 0.05;        // Vitesse de défilement
 
     fluidCtx.beginPath();
     fluidCtx.moveTo(0, height);
     for (let x = 0; x <= width; x++) {
-      // Calcul de l'onde avec un mélange de sinusoïdes pour un effet plus organique
-      const y = amplitude * Math.sin(frequency * x + time) +
-                (5 * Math.sin(3 * frequency * x + time * 2)) +
-                offset;
+      // Onde sinusoïdale ajoutée au baseline
+      const y = amplitude * Math.sin(frequency * x + time) + baseline;
       fluidCtx.lineTo(x, y);
     }
     fluidCtx.lineTo(width, height);
     fluidCtx.closePath();
 
-    // Dégradé linéaire pour un effet néon
+    // Création d'un dégradé néon
     const gradient = fluidCtx.createLinearGradient(0, 0, width, 0);
     gradient.addColorStop(0, "#00F0FF");
     gradient.addColorStop(0.5, "#FF00FF");
