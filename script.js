@@ -1,55 +1,64 @@
 // script.js
 
 document.addEventListener("DOMContentLoaded", function() {
-  // Animation d'apparition avec GSAP
-  gsap.from("#mainTitle", { duration: 1, y: -50, opacity: 0 });
-  gsap.from("#subTitle", { duration: 1, y: 50, opacity: 0, delay: 0.5 });
-  gsap.from("#chartSection", { duration: 1, opacity: 0, delay: 1 });
-  gsap.from("#fluidSection", { duration: 1, opacity: 0, delay: 1.5 });
+  // Animations d'introduction avec GSAP
+  gsap.from("header", { duration: 1, y: -50, opacity: 0 });
+  gsap.from("main", { duration: 1, opacity: 0, delay: 0.5 });
+  gsap.from("footer", { duration: 1, opacity: 0, delay: 1 });
 
-  // Configuration du graphique avec Chart.js
+  // --- Graphique avec Chart.js ---
   const ctx = document.getElementById("insectChart").getContext("2d");
-  new Chart(ctx, {
+  // Données enrichies : évolution sur plusieurs décennies (exemple hypothétique)
+  const chartData = {
+    labels: ["1990", "2000", "2010", "2020"],
+    datasets: [{
+      label: "Biomasse relative (%)",
+      data: [100, 80, 50, 20],
+      backgroundColor: "rgba(255, 99, 132, 0.2)",
+      borderColor: "rgba(255, 99, 132, 1)",
+      borderWidth: 2,
+      tension: 0.4,
+      fill: true
+    }]
+  };
+  const chartConfig = {
     type: "line",
-    data: {
-      labels: ["1989", "1995", "2001", "2007", "2013", "2016"],
-      datasets: [{
-        label: "Biomasse relative (%)",
-        data: [100, 90, 75, 60, 45, 24],
-        backgroundColor: "rgba(99, 110, 250, 0.2)",
-        borderColor: "rgba(99, 110, 250, 1)",
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3
-      }]
-    },
+    data: chartData,
     options: {
       responsive: true,
       plugins: {
-        legend: { display: true, position: "top" },
+        legend: {
+          labels: { color: "#E0E0E0" },
+          position: "top"
+        },
         title: {
           display: true,
-          text: "Évolution de la biomasse des insectes volants (1989 - 2016)"
+          text: "Évolution du Déclin des Insectes en Europe",
+          color: "#E0E0E0",
+          font: { size: 18 }
         }
       },
       scales: {
+        x: {
+          ticks: { color: "#E0E0E0" },
+          grid: { color: "rgba(255, 255, 255, 0.1)" }
+        },
         y: {
           beginAtZero: true,
-          max: 110,
-          title: { display: true, text: "Biomasse relative (%)" }
-        },
-        x: {
-          title: { display: true, text: "Années" }
+          ticks: { color: "#E0E0E0" },
+          grid: { color: "rgba(255, 255, 255, 0.1)" },
+          max: 110
         }
       }
     }
-  });
+  };
+  new Chart(ctx, chartConfig);
 
-  // Animation fluide inspirée de la mécanique des fluides
+  // --- Animation fluide inspirée de la mécanique des fluides ---
   const fluidCanvas = document.getElementById("fluidCanvas");
   const fluidCtx = fluidCanvas.getContext("2d");
 
-  // Ajustement de la taille du canvas fluid en fonction de son conteneur
+  // Ajustement de la taille du canvas en fonction du conteneur
   function resizeFluidCanvas() {
     fluidCanvas.width = fluidCanvas.clientWidth;
     fluidCanvas.height = fluidCanvas.clientHeight;
@@ -58,26 +67,40 @@ document.addEventListener("DOMContentLoaded", function() {
   window.addEventListener("resize", resizeFluidCanvas);
 
   let time = 0;
-  function drawWave() {
-    fluidCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
-    const amplitude = 30;      // Amplitude de la vague
-    const wavelength = 100;    // Longueur d'onde
-    const speed = 0.05;        // Vitesse de défilement
+  function drawFluid() {
+    const width = fluidCanvas.width;
+    const height = fluidCanvas.height;
+    fluidCtx.clearRect(0, 0, width, height);
 
-    fluidCtx.fillStyle = "rgba(99, 110, 250, 0.5)";
+    // Paramètres de l'onde fluide
+    const amplitude = 40;    // Amplitude de la vague
+    const frequency = 0.02;  // Fréquence
+    const speed = 0.03;      // Vitesse de défilement
+    const offset = height / 2;
+
     fluidCtx.beginPath();
-    fluidCtx.moveTo(0, fluidCanvas.height);
-    // Dessiner une onde sinusoïdale
-    for (let x = 0; x <= fluidCanvas.width; x++) {
-      const y = amplitude * Math.sin((x / wavelength) + time) + (fluidCanvas.height / 2);
+    fluidCtx.moveTo(0, height);
+    for (let x = 0; x <= width; x++) {
+      // Calcul de l'onde avec un mélange de sinusoïdes pour un effet plus organique
+      const y = amplitude * Math.sin(frequency * x + time) +
+                (5 * Math.sin(3 * frequency * x + time * 2)) +
+                offset;
       fluidCtx.lineTo(x, y);
     }
-    fluidCtx.lineTo(fluidCanvas.width, fluidCanvas.height);
+    fluidCtx.lineTo(width, height);
     fluidCtx.closePath();
+
+    // Dégradé linéaire pour un effet néon
+    const gradient = fluidCtx.createLinearGradient(0, 0, width, 0);
+    gradient.addColorStop(0, "#00F0FF");
+    gradient.addColorStop(0.5, "#FF00FF");
+    gradient.addColorStop(1, "#00F0FF");
+
+    fluidCtx.fillStyle = gradient;
     fluidCtx.fill();
 
     time += speed;
-    requestAnimationFrame(drawWave);
+    requestAnimationFrame(drawFluid);
   }
-  drawWave();
+  drawFluid();
 });
