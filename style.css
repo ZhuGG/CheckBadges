@@ -1,0 +1,28 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f0f8ff;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background: #74b9ff;
+  color: white;
+  padding: 2rem;
+}
+
+main {
+  padding: 2rem;
+}
+
+footer {
+  background: #dfe6e9;
+  padding: 1rem;
+  font-size: 0.8rem;
+}
+
+#chartSection {
+  max-width: 800px;
+  margin: 0 auto;
+}
