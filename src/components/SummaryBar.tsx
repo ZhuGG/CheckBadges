@@ -1,6 +1,4 @@
 import { useMemo } from 'react';
-import { exportCsv } from '../lib/exportCsv';
-import { exportPdf } from '../lib/exportPdf';
 import { useAppStore } from '../state/store';
 import type { MatchResult } from '../types';
 import { t } from '../lib/i18n';
@@ -38,7 +36,8 @@ export default function SummaryBar() {
     thresholds,
     commandeLineCount,
     amalgameLineCount,
-    ocrConfidence
+    ocrConfidence,
+    appendWarning
   } = useAppStore((state) => ({
     results: state.results,
     warnings: state.warnings,
@@ -46,7 +45,8 @@ export default function SummaryBar() {
     thresholds: state.thresholds,
     commandeLineCount: state.commandeLineCount,
     amalgameLineCount: state.amalgameLineCount,
-    ocrConfidence: state.ocrConfidence
+    ocrConfidence: state.ocrConfidence,
+    appendWarning: state.appendWarning
   }));
 
   const counts = useMemo(() => computeCounts(results), [results]);
@@ -58,22 +58,36 @@ export default function SummaryBar() {
   const totalEntries = results.length;
   const totalLines = commandeLineCount + amalgameLineCount;
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (!results.length) return;
-    const blob = exportCsv(results);
-    downloadBlob(blob, 'checkbadges-resultats.csv');
+    try {
+      const { exportCsv } = await import('../lib/exportCsv');
+      const blob = exportCsv(results);
+      downloadBlob(blob, 'checkbadges-resultats.csv');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      appendWarning(`Erreur lors de l'export CSV: ${message}`);
+      console.error('Erreur export CSV', error);
+    }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!results.length) return;
-    const blob = exportPdf(results, {
-      thresholds,
-      warnings,
-      logs,
-      lineCount: totalLines,
-      ocrConfidence
-    });
-    downloadBlob(blob, 'checkbadges-rapport.pdf');
+    try {
+      const { exportPdf } = await import('../lib/exportPdf');
+      const blob = exportPdf(results, {
+        thresholds,
+        warnings,
+        logs,
+        lineCount: totalLines,
+        ocrConfidence
+      });
+      downloadBlob(blob, 'checkbadges-rapport.pdf');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      appendWarning(`Erreur lors de l'export PDF: ${message}`);
+      console.error('Erreur export PDF', error);
+    }
   };
 
   return (

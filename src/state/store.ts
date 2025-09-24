@@ -24,6 +24,7 @@ interface AppState {
   setLogs: (logs: string[]) => void;
   appendLog: (log: string) => void;
   setWarnings: (warnings: string[]) => void;
+  appendWarning: (warning: string) => void;
   setLoading: (loading: boolean) => void;
   setProgress: (progress: number) => void;
   setLineCounts: (counts: { commande?: number; amalgame?: number }) => void;
@@ -65,6 +66,10 @@ export const useAppStore = create<AppState>((set) => ({
       logs: [...state.logs, log]
     })),
   setWarnings: (warnings) => set({ warnings }),
+  appendWarning: (warning) =>
+    set((state) => ({
+      warnings: [...state.warnings, warning]
+    })),
   setLoading: (loading) => set({ loading }),
   setProgress: (progress) => set({ progress }),
   setLineCounts: (counts) =>

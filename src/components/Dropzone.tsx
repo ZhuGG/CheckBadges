@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { parsePdf } from '../lib/pdf';
-import { parseSpreadsheet } from '../lib/excel';
 import { mergeNovotelFragments } from '../lib/novotel';
 import type { ParsedDocument, PersonEntry } from '../types';
 import { useAppStore } from '../state/store';
 import { t } from '../lib/i18n';
+
+type PdfModule = typeof import('../lib/pdf');
+type ExcelModule = typeof import('../lib/excel');
 
 const ACCEPTED_TYPES = '.pdf,.xls,.xlsx,.csv';
 
@@ -101,6 +102,9 @@ export default function Dropzone() {
       let totalOcrConfidence = 0;
       let ocrCount = 0;
 
+      let pdfModule: PdfModule | null = null;
+      let excelModule: ExcelModule | null = null;
+
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i];
         const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -108,7 +112,10 @@ export default function Dropzone() {
         try {
           let parsed: ParsedDocument | undefined;
           if (isPdf(extension)) {
-            parsed = await parsePdf(file, {
+            if (!pdfModule) {
+              pdfModule = await import('../lib/pdf');
+            }
+            parsed = await pdfModule.parsePdf(file, {
               sourceLabel: file.name,
               onProgress: (fraction) => {
                 setProgress((i + fraction) / total);
@@ -116,7 +123,10 @@ export default function Dropzone() {
             });
           } else if (isSpreadsheet(extension)) {
             setProgress((i + 0.5) / total);
-            parsed = await parseSpreadsheet(file);
+            if (!excelModule) {
+              excelModule = await import('../lib/excel');
+            }
+            parsed = await excelModule.parseSpreadsheet(file);
           } else {
             allWarnings.push(`Format non pris en charge: ${file.name}`);
           }
