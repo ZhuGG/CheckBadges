@@ -70,6 +70,80 @@ const INITIAL_STATUS_FILTER: Record<MatchStatus, boolean> = {
   duplicate: true
 };
 
+const LETTER_PATTERN = /[A-Za-zÀ-ÖØ-öø-ÿ]/;
+const RAW_HONORIFIC_TOKENS = [
+  'm',
+  'm.',
+  'mr',
+  'mme',
+  'mlle',
+  'monsieur',
+  'madame',
+  'maitre',
+  'maître',
+  'dr',
+  'docteur'
+];
+const RAW_BANNED_TOKENS = [
+  'adresse',
+  'amalgame',
+  'badge',
+  'badges',
+  'bondecommande',
+  'civilite',
+  'commande',
+  'compagnie',
+  'contact',
+  'coquilles',
+  'correspondants',
+  'date',
+  'email',
+  'entreprise',
+  'facturation',
+  'facture',
+  'fonction',
+  'liste',
+  'livraison',
+  'manquants',
+  'montant',
+  'ocr',
+  'option',
+  'page',
+  'passion',
+  'portable',
+  'prenom',
+  'prix',
+  'quantite',
+  'quantites',
+  'rapport',
+  'reference',
+  'societe',
+  'status',
+  'telephone',
+  'total',
+  'ttc',
+  'ville'
+];
+const PDF_LINE_SKIP_KEYWORDS = [
+  'rapport',
+  'checkbadges',
+  'ocr',
+  'date',
+  'correspondants',
+  'manquants',
+  'coquilles',
+  'inversions',
+  'montant',
+  'total',
+  'facture',
+  'facturation',
+  'livraison',
+  'adresse',
+  'bondecommande',
+  'reference',
+  'contact'
+];
+
 function normalizeText(value: string): string {
   return value
     .normalize('NFD')
@@ -92,6 +166,13 @@ function normalizeHeader(value: string): string {
     .replace(/^_+|_+$/g, '')
     .toLowerCase();
 }
+
+function normalizeToken(value: string): string {
+  return normalizeHeader(value).replace(/_/g, '');
+}
+
+const HONORIFIC_TOKENS = new Set(RAW_HONORIFIC_TOKENS.map((token) => normalizeToken(token)));
+const BANNED_TOKENS = new Set(RAW_BANNED_TOKENS.map((token) => normalizeToken(token)));
 
 function findMatchingKey(keys: string[], candidates: string[]): string | undefined {
   return keys.find((key) => candidates.includes(key)) ?? keys.find((key) => candidates.some((candidate) => key.includes(candidate)));
@@ -181,6 +262,436 @@ function parseWithoutHeaders(rows: unknown[][]): HeaderOutcome {
   }
 
   return { people, errors, hasNameColumns: true };
+}
+
+function isPdfFile(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+}
+
+function stringToUint8Array(value: string): Uint8Array {
+  const array = new Uint8Array(value.length);
+  for (let index = 0; index < value.length; index += 1) {
+    array[index] = value.charCodeAt(index) & 0xff;
+  }
+  return array;
+}
+
+async function inflateStream(data: Uint8Array): Promise<Uint8Array> {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error("Décompression FlateDecode indisponible dans ce navigateur.");
+  }
+
+  const decompressionStream = new DecompressionStream('deflate');
+  const inputBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const response = new Response(new Blob([inputBuffer]).stream().pipeThrough(decompressionStream));
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+type PdfTextExtraction = {
+  lines: string[];
+  errors: string[];
+};
+
+function shouldSkipPdfLine(line: string): boolean {
+  const normalized = normalizeHeader(line);
+  if (normalized.includes('prenom') && normalized.includes('nom')) {
+    return false;
+  }
+  return PDF_LINE_SKIP_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function decodePdfStringLiteral(source: string, startIndex: number): { value: string; nextIndex: number } {
+  let index = startIndex + 1;
+  let nesting = 1;
+  let value = '';
+
+  while (index < source.length && nesting > 0) {
+    const char = source[index];
+
+    if (char === '\\') {
+      index += 1;
+      if (index >= source.length) {
+        break;
+      }
+
+      const nextChar = source[index];
+
+      if (/[0-7]/.test(nextChar)) {
+        let octal = nextChar;
+        index += 1;
+        for (let count = 0; count < 2 && index < source.length; count += 1) {
+          const digit = source[index];
+          if (/[0-7]/.test(digit)) {
+            octal += digit;
+            index += 1;
+          } else {
+            break;
+          }
+        }
+        value += String.fromCharCode(parseInt(octal, 8));
+        continue;
+      }
+
+      const escapeMap: Record<string, string> = {
+        n: '\n',
+        r: '\r',
+        t: '\t',
+        b: '\b',
+        f: '\f',
+        '(': '(',
+        ')': ')',
+        '\\': '\\'
+      };
+
+      value += escapeMap[nextChar] ?? nextChar;
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      nesting += 1;
+      value += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === ')') {
+      nesting -= 1;
+      if (nesting === 0) {
+        index += 1;
+        break;
+      }
+      value += char;
+      index += 1;
+      continue;
+    }
+
+    value += char;
+    index += 1;
+  }
+
+  return { value, nextIndex: index };
+}
+
+function decodePdfStringArray(source: string, startIndex: number): { value: string; nextIndex: number } {
+  let index = startIndex + 1;
+  let result = '';
+  let pendingSpace = false;
+
+  while (index < source.length) {
+    const char = source[index];
+
+    if (char === '(') {
+      if (pendingSpace && result && !result.endsWith(' ')) {
+        result += ' ';
+        pendingSpace = false;
+      }
+      const decoded = decodePdfStringLiteral(source, index);
+      result += decoded.value;
+      index = decoded.nextIndex;
+      continue;
+    }
+
+    if (char === ']') {
+      return { value: result, nextIndex: index + 1 };
+    }
+
+    if (char === '-' || (char >= '0' && char <= '9')) {
+      const match = source.slice(index).match(/^(-?\d+(?:\.\d+)?)/);
+      if (match) {
+        const numeric = Number.parseFloat(match[1]);
+        if (Number.isFinite(numeric) && Math.abs(numeric) > 80) {
+          pendingSpace = true;
+        }
+        index += match[1].length;
+        continue;
+      }
+    }
+
+    index += 1;
+  }
+
+  return { value: result, nextIndex: source.length };
+}
+
+function parsePdfTextStream(content: string): string[] {
+  const lines: string[] = [];
+  let current = '';
+
+  const pushCurrent = () => {
+    const trimmed = current.replace(/\s+/g, ' ').trim();
+    if (trimmed) {
+      lines.push(trimmed);
+    }
+    current = '';
+  };
+
+  let index = 0;
+  while (index < content.length) {
+    const char = content[index];
+
+    if (char === '(') {
+      const decoded = decodePdfStringLiteral(content, index);
+      current += decoded.value;
+      index = decoded.nextIndex;
+      continue;
+    }
+
+    if (char === '[') {
+      const decoded = decodePdfStringArray(content, index);
+      current += decoded.value;
+      index = decoded.nextIndex;
+      continue;
+    }
+
+    if (char === 'T') {
+      const operator = content.slice(index, index + 2);
+
+      if (operator === 'T*') {
+        index += 2;
+        pushCurrent();
+        continue;
+      }
+
+      if (operator === 'Td' || operator === 'TD') {
+        index += 2;
+        pushCurrent();
+        continue;
+      }
+
+      if (operator === 'Tj') {
+        index += 2;
+        continue;
+      }
+
+      if (content.startsWith('TJ', index)) {
+        index += 2;
+        continue;
+      }
+
+      if (operator === 'Tm') {
+        index += 2;
+        pushCurrent();
+        continue;
+      }
+    }
+
+    if (char === '\'' || char === '"') {
+      index += 1;
+      pushCurrent();
+      continue;
+    }
+
+    if (content.startsWith('BT', index) || content.startsWith('ET', index)) {
+      index += 2;
+      pushCurrent();
+      continue;
+    }
+
+    index += 1;
+  }
+
+  pushCurrent();
+  return lines;
+}
+
+async function extractPdfLines(file: File): Promise<PdfTextExtraction> {
+  const errors: string[] = [];
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const content = new TextDecoder('latin1', { fatal: false }).decode(bytes);
+  const regex = /<<([\s\S]*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  const lines: string[] = [];
+
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    const dictionary = match[1];
+    const rawStream = match[2];
+
+    if (/\/Subtype\s*\/Image/i.test(dictionary)) {
+      continue;
+    }
+
+    const filterMatches = Array.from(dictionary.matchAll(/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9\.]+))/g));
+    const filters: string[] = [];
+
+    filterMatches.forEach((filterMatch) => {
+      if (filterMatch[2]) {
+        filters.push(filterMatch[2]);
+        return;
+      }
+      if (filterMatch[1]) {
+        filterMatch[1]
+          .split(/\s+/)
+          .map((token) => token.replace('/', '').trim())
+          .filter((token) => token.length > 0)
+          .forEach((token) => filters.push(token));
+      }
+    });
+
+    let streamData = stringToUint8Array(rawStream);
+
+    if (filters.some((filter) => filter === 'FlateDecode')) {
+      try {
+        streamData = await inflateStream(streamData);
+      } catch (error) {
+        errors.push(
+          `Impossible de décompresser une section du PDF (${error instanceof Error ? error.message : 'erreur inconnue'}).`
+        );
+        continue;
+      }
+    }
+
+    const streamText = new TextDecoder('latin1', { fatal: false }).decode(streamData);
+    const textLines = parsePdfTextStream(streamText);
+    lines.push(...textLines);
+  }
+
+  return { lines, errors };
+}
+
+function cleanNameToken(token: string): string {
+  return token
+    .replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ'’\-]+/g, '')
+    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ'’\-]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isLikelyName(value: string): boolean {
+  if (!value) {
+    return false;
+  }
+  if (!LETTER_PATTERN.test(value)) {
+    return false;
+  }
+  if (/\d/.test(value)) {
+    return false;
+  }
+  const normalized = normalizeToken(value);
+  if (!normalized || normalized.length < 2) {
+    return false;
+  }
+  if (BANNED_TOKENS.has(normalized)) {
+    return false;
+  }
+  return true;
+}
+
+function parsePdfLine(line: string): { prenom: string; nom: string } | null {
+  let sanitized = line.replace(/\s+/g, ' ').trim();
+
+  if (!sanitized || !LETTER_PATTERN.test(sanitized)) {
+    return null;
+  }
+
+  sanitized = sanitized.replace(/^[0-9]+(?:[.)\s-]+|(?:er|e)?\s+)/i, '').trim();
+
+  if (!sanitized) {
+    return null;
+  }
+
+  const parts = sanitized.split(/\s{2,}|;|,|\t|\|/).map((value) => value.trim()).filter(Boolean);
+  let tokens = (parts.length >= 2 ? parts : sanitized.split(/\s+/)).map(cleanNameToken);
+
+  tokens = tokens.filter((token) => token && LETTER_PATTERN.test(token));
+
+  while (tokens.length > 0 && HONORIFIC_TOKENS.has(normalizeToken(tokens[0]))) {
+    tokens.shift();
+  }
+
+  while (tokens.length > 0 && BANNED_TOKENS.has(normalizeToken(tokens[tokens.length - 1]))) {
+    tokens.pop();
+  }
+
+  tokens = tokens.filter((token) => token.length > 0);
+
+  if (tokens.length < 2 || tokens.length > 6) {
+    return null;
+  }
+
+  const prenom = tokens.shift()!;
+  const nom = tokens.join(' ');
+
+  if (!isLikelyName(prenom) || !isLikelyName(nom)) {
+    return null;
+  }
+
+  return { prenom, nom };
+}
+
+function parsePdfLines(lines: string[]): HeaderOutcome {
+  const errors: string[] = [];
+  const people: Person[] = [];
+
+  const headerIndex = lines.findIndex((line) => {
+    const normalized = normalizeHeader(line);
+    return normalized.includes('prenom') && normalized.includes('nom');
+  });
+
+  const startIndex = headerIndex >= 0 ? headerIndex + 1 : 0;
+
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index];
+
+    if (shouldSkipPdfLine(line)) {
+      continue;
+    }
+
+    const parsed = parsePdfLine(line);
+    if (!parsed) {
+      continue;
+    }
+
+    people.push({
+      prenom: parsed.prenom,
+      nom: parsed.nom,
+      normalized: normalizeText(`${parsed.prenom} ${parsed.nom}`),
+      lineNumber: index + 1
+    });
+  }
+
+  if (people.length === 0 && headerIndex === -1) {
+    const fallback: Person[] = [];
+
+    lines.forEach((line, index) => {
+      if (shouldSkipPdfLine(line)) {
+        return;
+      }
+      const parsed = parsePdfLine(line);
+      if (!parsed) {
+        return;
+      }
+      fallback.push({
+        prenom: parsed.prenom,
+        nom: parsed.nom,
+        normalized: normalizeText(`${parsed.prenom} ${parsed.nom}`),
+        lineNumber: index + 1
+      });
+    });
+
+    if (fallback.length >= 3) {
+      people.push(...fallback);
+      errors.push("Colonnes prénom et nom non détectées : extraction approximative depuis le PDF.");
+    }
+  }
+
+  if (people.length === 0) {
+    errors.push("Aucune donnée exploitable n'a été identifiée dans le PDF. Vérifiez que le document contient un tableau avec les colonnes prénom et nom.");
+  }
+
+  return { people, errors, hasNameColumns: people.length > 0 };
+}
+
+async function parsePdfFile(file: File): Promise<Omit<DatasetState, 'loading'>> {
+  const { lines, errors } = await extractPdfLines(file);
+  const outcome = parsePdfLines(lines);
+  return {
+    fileName: file.name,
+    people: outcome.people,
+    errors: [...errors, ...outcome.errors]
+  };
 }
 
 function parseCsvFile(file: File): Promise<Omit<DatasetState, 'loading'>> {
@@ -382,13 +893,22 @@ function useDataset(setState: (state: DatasetState) => void) {
       errors: []
     });
 
-    const result = await parseCsvFile(file);
-    setState({
-      fileName: result.fileName,
-      loading: false,
-      people: result.people,
-      errors: result.errors
-    });
+    try {
+      const result = await (isPdfFile(file) ? parsePdfFile(file) : parseCsvFile(file));
+      setState({
+        fileName: result.fileName,
+        loading: false,
+        people: result.people,
+        errors: result.errors
+      });
+    } catch (error) {
+      setState({
+        fileName: file.name,
+        loading: false,
+        people: [],
+        errors: [`Impossible de traiter ${file.name}: ${error instanceof Error ? error.message : 'erreur inconnue'}`]
+      });
+    }
   };
 }
 
@@ -410,10 +930,10 @@ function DatasetPanel({
         <p className="panel__description">{description}</p>
       </header>
       <label className="file-input">
-        <span>Sélectionner un fichier CSV</span>
+        <span>Sélectionner un fichier (CSV ou PDF)</span>
         <input
           type="file"
-          accept=".csv,.tsv,.txt"
+          accept=".csv,.tsv,.txt,.pdf"
           onChange={onChange}
           onClick={(event: MouseEvent<HTMLInputElement>) => {
             event.currentTarget.value = '';
@@ -508,13 +1028,13 @@ export default function App() {
       <div className="layout__grid">
         <DatasetPanel
           title="Bon de commande"
-          description="Fichier exporté depuis votre CRM (CSV de préférence). Les deux premières colonnes doivent contenir le prénom et le nom."
+          description="Fichier exporté depuis votre CRM (CSV) ou bon de commande PDF avec la liste des badges. Les colonnes prénom et nom doivent être clairement identifiables."
           state={commandeState}
           onChange={handleCommandeChange}
         />
         <DatasetPanel
           title="Liste de badges"
-          description="Fichier généré après production des badges. Les prénoms et noms sont analysés en ignorant la casse et les accents."
+          description="Fichier généré après production des badges (CSV ou PDF). Les prénoms et noms sont analysés en ignorant la casse et les accents."
           state={badgesState}
           onChange={handleBadgesChange}
         />

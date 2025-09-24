@@ -11,7 +11,7 @@ en place dans un environnement verrouillé. Cette nouvelle mouture mise sur :
 
 - une base React + Vite très légère ;
 - un seul point d'entrée (`src/App.tsx`) lisible et facilement extensible ;
-- l'utilisation de CSV standards (accents et casse ignorés automatiquement) ;
+- l'utilisation de CSV standards ou de PDF textuels (accents et casse ignorés automatiquement) ;
 - aucune dépendance lourde ni traitement asynchrone côté serveur.
 
 ## Installation et lancement
@@ -29,9 +29,9 @@ Puis ouvrez http://localhost:5173/ dans votre navigateur. L'outil peut égalemen
 
 ## Format attendu
 
-- Chaque fichier doit être un CSV (ou TSV) avec prénom et nom dans les deux premières colonnes.
-- Les en-têtes sont optionnels. Les accents, espaces superflus et différences de casse sont automatiquement ignorés.
-- Vous pouvez exporter depuis Excel/Sheets ("Enregistrer sous… CSV") ou tout CRM générant un tableau texte.
+- Chaque fichier peut être un CSV (ou TSV) avec prénom et nom dans les deux premières colonnes, ou un PDF textuel contenant un tableau avec ces colonnes.
+- Les en-têtes sont recommandés. Les accents, espaces superflus et différences de casse sont automatiquement ignorés.
+- Vous pouvez exporter depuis Excel/Sheets ("Enregistrer sous… CSV"), tout CRM générant un tableau texte, ou déposer directement le bon de commande PDF si les noms y figurent dans un tableau.
 
 ## Fonctionnement
 
@@ -46,7 +46,7 @@ Puis ouvrez http://localhost:5173/ dans votre navigateur. L'outil peut égalemen
 
 ## Limitations volontaires
 
-- Les PDF et formats propriétaires ne sont plus pris en charge : convertissez-les au préalable en CSV.
+- Les PDF doivent contenir du texte (pas de scan/image) et un tableau clair avec les colonnes prénom et nom.
 - Pas d'OCR ni de "mode Novotel" automatique : l'objectif est la simplicité et la fiabilité.
 - Le traitement se fait entièrement dans le navigateur ; aucun fichier n'est envoyé vers un serveur externe.
 
