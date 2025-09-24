@@ -38,6 +38,11 @@ type HeaderOutcome = {
   hasNameColumns: boolean;
 };
 
+type ColumnHints = {
+  prenom: number;
+  nom: number;
+};
+
 const INITIAL_DATASET: DatasetState = {
   loading: false,
   people: [],
@@ -97,15 +102,45 @@ const RAW_BANNED_TOKENS = [
   'facturation',
   'facture',
   'fonction',
+  'anglais',
+  'allemand',
+  'arabe',
+  'atelier',
+  'ateliers',
+  'chinois',
+  'espagnol',
+  'italien',
+  'langue',
+  'langues',
   'liste',
   'livraison',
+  'loisir',
+  'loisirs',
+  'groupe',
+  'groupes',
+  'equipe',
+  'equipes',
+  'hobby',
+  'hobbies',
+  'neerlandais',
   'manquants',
   'montant',
+  'musique',
+  'japonais',
+  'role',
+  'roles',
+  'portugais',
   'ocr',
   'option',
   'page',
   'passion',
+  'passions',
+  'nom',
+  'noms',
+  'russe',
   'portable',
+  'team',
+  'teams',
   'prenom',
   'prix',
   'quantite',
@@ -164,6 +199,125 @@ function normalizeToken(value: string): string {
 const HONORIFIC_TOKENS = new Set(RAW_HONORIFIC_TOKENS.map((token) => normalizeToken(token)));
 const BANNED_TOKENS = new Set(RAW_BANNED_TOKENS.map((token) => normalizeToken(token)));
 
+function splitIntoColumns(line: string): string[] {
+  return line.split(/\s{2,}|;|,|\t|\|/).map((value) => value.trim());
+}
+
+function looksLikeSurname(value: string): boolean {
+  const sanitized = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ'’\-\s]/g, '');
+  if (!sanitized) {
+    return false;
+  }
+  const upper = sanitized.toUpperCase();
+  const lower = sanitized.toLowerCase();
+  if (sanitized === upper && sanitized !== lower) {
+    return true;
+  }
+  if (sanitized.includes('-') || sanitized.includes(' ')) {
+    const parts = sanitized.split(/[-\s]+/).filter(Boolean);
+    if (parts.length >= 2 && parts.every((part) => part === part.toUpperCase() || part[0] === part[0].toUpperCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function looksLikeFirstNameCandidate(value: string): boolean {
+  const sanitized = value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ'’\-\s]/g, '');
+  if (!sanitized) {
+    return false;
+  }
+  const upper = sanitized.toUpperCase();
+  const lower = sanitized.toLowerCase();
+  if (sanitized === upper && sanitized !== lower) {
+    return sanitized.length <= 4;
+  }
+  return sanitized[0] === sanitized[0].toUpperCase();
+}
+
+function parseTokensIntoName(rawTokens: string[]): { prenom: string; nom: string } | null {
+  let tokens = rawTokens
+    .map(cleanNameToken)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0 && LETTER_PATTERN.test(token));
+
+  while (tokens.length > 0 && HONORIFIC_TOKENS.has(normalizeToken(tokens[0]))) {
+    tokens.shift();
+  }
+
+  while (tokens.length > 0 && BANNED_TOKENS.has(normalizeToken(tokens[tokens.length - 1]))) {
+    tokens.pop();
+  }
+
+  if (tokens.length < 2) {
+    return null;
+  }
+
+  const prenom = tokens.shift()!;
+  const nomTokens = tokens.filter((token) => !BANNED_TOKENS.has(normalizeToken(token)));
+
+  if (nomTokens.length === 0) {
+    return null;
+  }
+
+  const nom = nomTokens.join(' ');
+
+  if (!isLikelyName(prenom) || !isLikelyName(nom)) {
+    return null;
+  }
+
+  return { prenom, nom };
+}
+
+function parseColumnsIntoName(columns: string[], columnHints?: ColumnHints): { prenom: string; nom: string } | null {
+  const tryPair = (prenomIndex: number, nomIndex: number) => {
+    if (prenomIndex < 0 || nomIndex < 0) {
+      return null;
+    }
+    if (prenomIndex >= columns.length || nomIndex >= columns.length) {
+      return null;
+    }
+    const prenom = cleanNameToken(columns[prenomIndex]);
+    const nom = cleanNameToken(columns[nomIndex]);
+    if (!prenom || !nom) {
+      return null;
+    }
+    if (!isLikelyName(prenom) || !isLikelyName(nom)) {
+      return null;
+    }
+    return { prenom, nom };
+  };
+
+  if (columnHints) {
+    const parsed = tryPair(columnHints.prenom, columnHints.nom);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  if (columns.length >= 2) {
+    const parsed = tryPair(0, 1);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  if (columns.length === 1) {
+    const tokens = columns[0].split(/\s+/).filter(Boolean);
+    const parsed = parseTokensIntoName(tokens);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  if (columns.length > 1) {
+    const tokens = columns.flatMap((column) => column.split(/\s+/)).filter(Boolean);
+    return parseTokensIntoName(tokens);
+  }
+
+  return null;
+}
+
 function isPdfFile(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 }
@@ -174,6 +328,99 @@ function stringToUint8Array(value: string): Uint8Array {
     array[index] = value.charCodeAt(index) & 0xff;
   }
   return array;
+}
+
+function asciiHexDecode(data: Uint8Array): Uint8Array {
+  const text = new TextDecoder('latin1', { fatal: false }).decode(data);
+  let buffer = '';
+  const bytes: number[] = [];
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '>') {
+      break;
+    }
+    if (/\s/.test(char)) {
+      continue;
+    }
+    if (!/[0-9A-Fa-f]/.test(char)) {
+      throw new Error('Caractère ASCIIHex invalide dans le flux PDF.');
+    }
+    buffer += char;
+  }
+
+  if (buffer.length % 2 === 1) {
+    buffer += '0';
+  }
+
+  for (let index = 0; index < buffer.length; index += 2) {
+    bytes.push(Number.parseInt(buffer.slice(index, index + 2), 16));
+  }
+
+  return new Uint8Array(bytes);
+}
+
+function ascii85Decode(data: Uint8Array): Uint8Array {
+  const text = new TextDecoder('latin1', { fatal: false }).decode(data);
+  const bytes: number[] = [];
+  const chunk = [0, 0, 0, 0, 0];
+  let count = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (char === '~') {
+      break;
+    }
+
+    if (/\s/.test(char)) {
+      continue;
+    }
+
+    if (char === 'z') {
+      if (count !== 0) {
+        throw new Error('Caractère "z" inattendu dans un bloc ASCII85.');
+      }
+      bytes.push(0, 0, 0, 0);
+      continue;
+    }
+
+    const code = char.charCodeAt(0);
+    if (code < 33 || code > 117) {
+      throw new Error('Caractère ASCII85 invalide dans le flux PDF.');
+    }
+
+    chunk[count] = code - 33;
+    count += 1;
+
+    if (count === 5) {
+      let value = 0;
+      for (let offset = 0; offset < 5; offset += 1) {
+        value = value * 85 + chunk[offset];
+      }
+      for (let byteIndex = 3; byteIndex >= 0; byteIndex -= 1) {
+        bytes.push((value >> (byteIndex * 8)) & 0xff);
+      }
+      count = 0;
+    }
+  }
+
+  if (count > 0) {
+    for (let fill = count; fill < 5; fill += 1) {
+      chunk[fill] = 84;
+    }
+    let value = 0;
+    for (let offset = 0; offset < 5; offset += 1) {
+      value = value * 85 + chunk[offset];
+    }
+    const bytesToKeep = count - 1;
+    for (let byteIndex = 0; byteIndex < bytesToKeep; byteIndex += 1) {
+      const shift = 24 - byteIndex * 8;
+      bytes.push((value >> shift) & 0xff);
+    }
+  }
+
+  return new Uint8Array(bytes);
 }
 
 async function inflateStream(data: Uint8Array): Promise<Uint8Array> {
@@ -403,6 +650,7 @@ async function extractPdfLines(file: File): Promise<PdfTextExtraction> {
   const content = new TextDecoder('latin1', { fatal: false }).decode(bytes);
   const regex = /<<([\s\S]*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/g;
   const lines: string[] = [];
+  const unsupportedFilters = new Set<string>();
 
   let match: RegExpExecArray | null;
   while ((match = regex.exec(content)) !== null) {
@@ -433,15 +681,42 @@ async function extractPdfLines(file: File): Promise<PdfTextExtraction> {
 
     let streamData = stringToUint8Array(rawStream);
 
-    if (filters.some((filter) => filter === 'FlateDecode')) {
-      try {
-        streamData = await inflateStream(streamData);
-      } catch (error) {
-        errors.push(
-          `Impossible de décompresser une section du PDF (${error instanceof Error ? error.message : 'erreur inconnue'}).`
-        );
-        continue;
+    let filterError = false;
+
+    if (filters.length > 0) {
+      for (const filter of filters) {
+        const normalized = filter.replace(/[^A-Za-z]/g, '').toLowerCase();
+        try {
+          if (normalized === 'flatedecode' || normalized === 'fl') {
+            streamData = await inflateStream(streamData);
+            continue;
+          }
+          if (normalized === 'ascii85decode' || normalized === 'a85') {
+            streamData = ascii85Decode(streamData);
+            continue;
+          }
+          if (normalized === 'asciihexdecode' || normalized === 'ahx') {
+            streamData = asciiHexDecode(streamData);
+            continue;
+          }
+          if (!unsupportedFilters.has(filter)) {
+            unsupportedFilters.add(filter);
+            errors.push(`Filtre PDF non pris en charge (${filter}).`);
+          }
+          filterError = true;
+          break;
+        } catch (error) {
+          errors.push(
+            `Impossible d'appliquer le filtre ${filter}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`
+          );
+          filterError = true;
+          break;
+        }
       }
+    }
+
+    if (filterError) {
+      continue;
     }
 
     const streamText = new TextDecoder('latin1', { fatal: false }).decode(streamData);
@@ -480,46 +755,23 @@ function isLikelyName(value: string): boolean {
   return true;
 }
 
-function parsePdfLine(line: string): { prenom: string; nom: string } | null {
-  let sanitized = line.replace(/\s+/g, ' ').trim();
+function parsePdfLine(line: string, columnHints?: ColumnHints): { prenom: string; nom: string } | null {
+  const withoutIndex = line.replace(/^[0-9]+(?:[.)\s-]+|(?:er|e)?\s+)/i, '');
+  const columnSource = withoutIndex.replace(/^\s+/, '');
+  const sanitized = columnSource.replace(/\s+/g, ' ').trim();
 
   if (!sanitized || !LETTER_PATTERN.test(sanitized)) {
     return null;
   }
 
-  sanitized = sanitized.replace(/^[0-9]+(?:[.)\s-]+|(?:er|e)?\s+)/i, '').trim();
-
-  if (!sanitized) {
-    return null;
+  const columns = splitIntoColumns(columnSource);
+  const columnResult = parseColumnsIntoName(columns, columnHints);
+  if (columnResult) {
+    return columnResult;
   }
 
-  const parts = sanitized.split(/\s{2,}|;|,|\t|\|/).map((value) => value.trim()).filter(Boolean);
-  let tokens = (parts.length >= 2 ? parts : sanitized.split(/\s+/)).map(cleanNameToken);
-
-  tokens = tokens.filter((token) => token && LETTER_PATTERN.test(token));
-
-  while (tokens.length > 0 && HONORIFIC_TOKENS.has(normalizeToken(tokens[0]))) {
-    tokens.shift();
-  }
-
-  while (tokens.length > 0 && BANNED_TOKENS.has(normalizeToken(tokens[tokens.length - 1]))) {
-    tokens.pop();
-  }
-
-  tokens = tokens.filter((token) => token.length > 0);
-
-  if (tokens.length < 2 || tokens.length > 6) {
-    return null;
-  }
-
-  const prenom = tokens.shift()!;
-  const nom = tokens.join(' ');
-
-  if (!isLikelyName(prenom) || !isLikelyName(nom)) {
-    return null;
-  }
-
-  return { prenom, nom };
+  const tokens = sanitized.split(/\s+/);
+  return parseTokensIntoName(tokens);
 }
 
 function parsePdfLines(lines: string[]): HeaderOutcome {
@@ -532,6 +784,17 @@ function parsePdfLines(lines: string[]): HeaderOutcome {
   });
 
   const startIndex = headerIndex >= 0 ? headerIndex + 1 : 0;
+  let columnHints: ColumnHints | undefined;
+
+  if (headerIndex >= 0) {
+    const columns = splitIntoColumns(lines[headerIndex]);
+    const normalizedColumns = columns.map((value) => normalizeHeader(value));
+    const prenomIndex = normalizedColumns.findIndex((value) => value.includes('prenom'));
+    const nomIndex = normalizedColumns.findIndex((value) => value.includes('nom'));
+    if (prenomIndex !== -1 && nomIndex !== -1) {
+      columnHints = { prenom: prenomIndex, nom: nomIndex };
+    }
+  }
 
   for (let index = startIndex; index < lines.length; index += 1) {
     const line = lines[index];
@@ -540,7 +803,7 @@ function parsePdfLines(lines: string[]): HeaderOutcome {
       continue;
     }
 
-    const parsed = parsePdfLine(line);
+    const parsed = parsePdfLine(line, columnHints);
     if (!parsed) {
       continue;
     }
@@ -556,20 +819,92 @@ function parsePdfLines(lines: string[]): HeaderOutcome {
   if (people.length === 0 && headerIndex === -1) {
     const fallback: Person[] = [];
 
+    let pending: { value: string; lineNumber: number; looksLikeSurname: boolean } | null = null;
+
     lines.forEach((line, index) => {
       if (shouldSkipPdfLine(line)) {
+        pending = null;
         return;
       }
-      const parsed = parsePdfLine(line);
-      if (!parsed) {
+
+      const parsed = parsePdfLine(line, columnHints);
+      if (parsed) {
+        fallback.push({
+          prenom: parsed.prenom,
+          nom: parsed.nom,
+          normalized: normalizeText(`${parsed.prenom} ${parsed.nom}`),
+          lineNumber: index + 1
+        });
+        pending = null;
         return;
       }
-      fallback.push({
-        prenom: parsed.prenom,
-        nom: parsed.nom,
-        normalized: normalizeText(`${parsed.prenom} ${parsed.nom}`),
-        lineNumber: index + 1
-      });
+
+      const sanitized = line.replace(/\s+/g, ' ').trim();
+      if (!sanitized || !LETTER_PATTERN.test(sanitized)) {
+        pending = null;
+        return;
+      }
+
+      const tokens = sanitized.split(/\s+/).map(cleanNameToken).filter((token) => token.length > 0);
+
+      const tokensResult = parseTokensIntoName(tokens);
+      if (tokensResult) {
+        fallback.push({
+          prenom: tokensResult.prenom,
+          nom: tokensResult.nom,
+          normalized: normalizeText(`${tokensResult.prenom} ${tokensResult.nom}`),
+          lineNumber: index + 1
+        });
+        pending = null;
+        return;
+      }
+
+      if (tokens.length !== 1) {
+        pending = null;
+        return;
+      }
+
+      const token = tokens[0];
+      if (token.length > 40) {
+        pending = null;
+        return;
+      }
+      if (!isLikelyName(token)) {
+        pending = null;
+        return;
+      }
+
+      const tokenLooksLikeSurname = looksLikeSurname(token);
+      const tokenLooksLikeFirst = looksLikeFirstNameCandidate(token);
+
+      if (pending) {
+        let prenom = pending.value;
+        let nom = token;
+        if (pending.looksLikeSurname && tokenLooksLikeFirst && !tokenLooksLikeSurname) {
+          prenom = token;
+          nom = pending.value;
+        }
+        if (!pending.looksLikeSurname && tokenLooksLikeSurname && !tokenLooksLikeFirst) {
+          prenom = pending.value;
+          nom = token;
+        }
+        if (isLikelyName(prenom) && isLikelyName(nom)) {
+          fallback.push({
+            prenom,
+            nom,
+            normalized: normalizeText(`${prenom} ${nom}`),
+            lineNumber: pending.lineNumber
+          });
+          pending = null;
+          return;
+        }
+      }
+
+      pending = {
+        value: token,
+        lineNumber: index + 1,
+        looksLikeSurname: tokenLooksLikeSurname
+      };
     });
 
     if (fallback.length >= 3) {
@@ -582,7 +917,7 @@ function parsePdfLines(lines: string[]): HeaderOutcome {
     errors.push("Aucune donnée exploitable n'a été identifiée dans le PDF. Vérifiez que le document contient un tableau avec les colonnes prénom et nom.");
   }
 
-  return { people, errors, hasNameColumns: people.length > 0 };
+  return { people, errors, hasNameColumns: Boolean(columnHints) };
 }
 
 async function parsePdfFile(file: File): Promise<Omit<DatasetState, 'loading'>> {
