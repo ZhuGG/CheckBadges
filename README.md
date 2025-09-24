@@ -23,6 +23,10 @@ npm run dev
 
 Puis ouvrez http://localhost:5173/ dans votre navigateur. L'outil peut également être déployé en statique via `npm run build`.
 
+## Déploiement
+
+- Pousser sur `main` → site en ligne automatiquement.
+
 ## Format attendu
 
 - Chaque fichier doit être un CSV (ou TSV) avec prénom et nom dans les deux premières colonnes.
