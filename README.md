@@ -1,46 +1,50 @@
-# CheckBadges OCR
+# CheckBadges
 
-Application web 100 % front-end pour contrôler la cohérence entre un bon de commande et des amalgames badges directement dans le navigateur. L'import, l'analyse (OCR compris) et les exports se font localement : aucun serveur requis.
+Nouvelle implémentation simplifiée de l'outil de contrôle "CheckBadges". L'application fonctionne entièrement dans le navigateur
+et se concentre sur l'essentiel : comparer deux listes de participants (bon de commande et production badges) pour détecter les
+manquants, les doublons et les entrées en trop.
 
-## Installation
+## Pourquoi cette réécriture ?
+
+La version précédente reposait sur une architecture complexe (OCR, parsing PDF/Excel, store global, workers…) difficile à mettre
+en place dans un environnement verrouillé. Cette nouvelle mouture mise sur :
+
+- une base React + Vite très légère ;
+- un seul point d'entrée (`src/App.tsx`) lisible et facilement extensible ;
+- l'utilisation de CSV standards (accents et casse ignorés automatiquement) ;
+- aucune dépendance lourde ni traitement asynchrone côté serveur.
+
+## Installation et lancement
 
 ```bash
 npm install
 npm run dev
 ```
 
-Pour construire la version déployable :
+Puis ouvrez http://localhost:5173/ dans votre navigateur. L'outil peut également être déployé en statique via `npm run build`.
 
-```bash
-npm run build
-```
+## Format attendu
 
-Le dossier `dist/` peut ensuite être déposé tel quel sur Netlify, Vercel ou GitHub Pages.
+- Chaque fichier doit être un CSV (ou TSV) avec prénom et nom dans les deux premières colonnes.
+- Les en-têtes sont optionnels. Les accents, espaces superflus et différences de casse sont automatiquement ignorés.
+- Vous pouvez exporter depuis Excel/Sheets ("Enregistrer sous… CSV") ou tout CRM générant un tableau texte.
 
-## Utilisation
+## Fonctionnement
 
-1. Ouvrez l'application (`npm run dev` puis http://localhost:5173/).
-2. Glissez-déposez un bon de commande (CSV/XLS/XLSX ou PDF) ainsi qu'un ou plusieurs amalgames (PDF).
-3. Ajustez les seuils de similarité et la tolérance aux accents si besoin.
-4. Consultez le tableau filtrable (correspondances, manquants, en trop, coquilles, inversions).
-5. Exportez les résultats au format CSV ou un rapport PDF structuré.
+1. Importez le bon de commande et la liste de badges grâce aux deux champs de sélection.
+2. L'application analyse localement les fichiers (bibliothèque `papaparse`).
+3. Une normalisation simple (suppression des accents, mise en minuscules) permet de comparer les noms.
+4. Les résultats sont affichés dans un tableau unique avec les compteurs suivants :
+   - **Manquant** : présent dans la commande mais absent des badges ;
+   - **En trop** : présent dans les badges mais pas dans la commande ;
+   - **Doublon** : plusieurs occurrences du même nom dans la commande ;
+   - **Correspondance** : tout est cohérent.
 
-Des fichiers d'exemple sont fournis dans `public/samples/` (dont le scénario Novotel) et un rapport type dans `docs/sample-report.pdf`.
+## Limitations volontaires
 
-## Fonctionnalités clés
+- Les PDF et formats propriétaires ne sont plus pris en charge : convertissez-les au préalable en CSV.
+- Pas d'OCR ni de "mode Novotel" automatique : l'objectif est la simplicité et la fiabilité.
+- Le traitement se fait entièrement dans le navigateur ; aucun fichier n'est envoyé vers un serveur externe.
 
-- OCR local via `tesseract.js` (Web Worker) avec fallback automatique pour les PDF scannés.
-- Parsing PDF (`pdfjs-dist`), Excel/CSV (`xlsx`), normalisation et fuzzy matching (Jaro/Damerau).
-- Détection du format « Novotel » (prénoms / noms / passions) et fusion automatique des fragments.
-- Ignoration des lignes de cartouche (ex. "Leeroy"/"Jordan" en header/footer) et détection d'inversions prénom/nom.
-- Export CSV & PDF, logs de parsing, indicateur de progression, support 2k lignes.
-
-## Limites connues
-
-- L'OCR peut être lent pour de gros PDF scannés (prévoir plusieurs secondes pour >100 pages).
-- Les heuristiques Novotel reposent sur des distributions de tokens et peuvent nécessiter un ajustement sur des formats très atypiques.
-- L'application n'effectue pas de sauvegarde côté serveur : pensez à télécharger vos exports.
-
-## Confidentialité
-
-Tous les traitements (lecture de fichiers, OCR, comparaison, exports) sont exécutés côté navigateur. Aucun fichier n'est envoyé sur un serveur externe.
+Vous pouvez adapter le code à vos besoins : le cœur de l'algorithme se trouve dans `src/App.tsx` et tient en quelques fonctions
+pures faciles à tester.
