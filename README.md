@@ -11,7 +11,7 @@ en place dans un environnement verrouillé. Cette nouvelle mouture mise sur :
 
 - une base React + Vite très légère ;
 - un seul point d'entrée (`src/App.tsx`) lisible et facilement extensible ;
-- l'utilisation de CSV standards ou de PDF textuels (accents et casse ignorés automatiquement) ;
+- l'utilisation exclusive de PDF textuels (accents et casse ignorés automatiquement) ;
 - aucune dépendance lourde ni traitement asynchrone côté serveur.
 
 ## Installation et lancement
@@ -29,14 +29,14 @@ Puis ouvrez http://localhost:5173/ dans votre navigateur. L'outil peut égalemen
 
 ## Format attendu
 
-- Chaque fichier peut être un CSV (ou TSV) avec prénom et nom dans les deux premières colonnes, ou un PDF textuel contenant un tableau avec ces colonnes.
+- Chaque fichier doit être un PDF textuel contenant un tableau avec les colonnes prénom et nom.
 - Les en-têtes sont recommandés. Les accents, espaces superflus et différences de casse sont automatiquement ignorés.
-- Vous pouvez exporter depuis Excel/Sheets ("Enregistrer sous… CSV"), tout CRM générant un tableau texte, ou déposer directement le bon de commande PDF si les noms y figurent dans un tableau.
+- Exportez ou générez un PDF depuis votre CRM ou l'outil de production des badges : les noms doivent être présents dans un tableau accessible.
 
 ## Fonctionnement
 
 1. Importez le bon de commande et la liste de badges grâce aux deux champs de sélection.
-2. L'application analyse localement les fichiers (bibliothèque `papaparse`).
+2. L'application analyse localement le texte des PDF pour identifier les prénoms et noms.
 3. Une normalisation simple (suppression des accents, mise en minuscules) permet de comparer les noms.
 4. Les résultats sont affichés dans un tableau unique avec les compteurs suivants :
    - **Manquant** : présent dans la commande mais absent des badges ;
