@@ -7,6 +7,8 @@ export default defineConfig({
   base: isGitHubPages ? '/CheckBadges/' : './',
   plugins: [react()],
   build: {
-    target: 'esnext'
+    // Target a broadly supported ECMAScript version to avoid syntax errors (blank page)
+    // on older browsers that do not yet understand features like optional chaining.
+    target: 'es2019'
   }
 });
