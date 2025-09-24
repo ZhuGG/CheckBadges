@@ -1207,21 +1207,31 @@ export default function App() {
       <header className="layout__header">
         <h1>CheckBadges</h1>
         <p>
-          Comparez simplement un bon de commande et la liste de badges délivrés. L\'outil fonctionne hors-ligne et se concentre
-          sur l\'essentiel&nbsp;: repérer les manquants, les doublons et les écarts.
+          Analysez en un coup d&apos;œil les écarts entre la commande et les badges produits. Tout se déroule hors-ligne pour mettre
+          en lumière les manquants, les doublons et les anomalies.
         </p>
+        <div className="layout__tags">
+          <span className="layout__tag">
+            <span className="layout__tag-dot" aria-hidden="true" />
+            Analyse locale
+          </span>
+          <span className="layout__tag">
+            <span className="layout__tag-dot layout__tag-dot--secondary" aria-hidden="true" />
+            Anomalies ciblées
+          </span>
+        </div>
       </header>
 
       <div className="layout__grid">
         <DatasetPanel
           title="Bon de commande"
-          description="Bon de commande PDF contenant la liste des badges. Les colonnes prénom et nom doivent être clairement identifiables."
+          description="PDF du bon de commande avec les colonnes Prénom/Nom bien identifiées pour chaque participant."
           state={commandeState}
           onChange={handleCommandeChange}
         />
         <DatasetPanel
           title="Liste de badges"
-          description="Fichier PDF généré après production des badges. Les prénoms et noms sont analysés en ignorant la casse et les accents."
+          description="PDF produit après fabrication des badges : les prénoms et noms sont normalisés (casse et accents ignorés)."
           state={badgesState}
           onChange={handleBadgesChange}
         />
