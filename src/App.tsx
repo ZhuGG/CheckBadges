@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, type MouseEvent } from 'react';
+import { useCallback, useMemo, useState, type ChangeEvent, type MouseEvent } from 'react';
 import Papa from 'papaparse';
 import type { ParseError, ParseResult } from 'papaparse';
 
@@ -57,6 +57,18 @@ const STATUS_LABELS: Record<MatchStatus, string> = {
 };
 
 const STATUS_ORDER: MatchStatus[] = ['missing', 'extra', 'duplicate', 'match'];
+
+const DATASET_LABELS: Record<DatasetKind, string> = {
+  commande: 'Bon de commande',
+  badges: 'Fichier badges'
+};
+
+const INITIAL_STATUS_FILTER: Record<MatchStatus, boolean> = {
+  match: true,
+  missing: true,
+  extra: true,
+  duplicate: true
+};
 
 function normalizeText(value: string): string {
   return value
@@ -319,6 +331,43 @@ function computeComparison(commande: Person[], badges: Person[]): Comparison {
   return { rows, summary };
 }
 
+function toCsvValue(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadRowsAsCsv(rows: MatchRow[], fileName: string) {
+  if (rows.length === 0) {
+    return;
+  }
+
+  const header = ['Statut', 'Prénom', 'Nom', 'Origine', 'Détails'];
+  const lines = rows.map((row) => [
+    STATUS_LABELS[row.status],
+    row.prenom,
+    row.nom,
+    DATASET_LABELS[row.source],
+    row.details
+  ]);
+
+  const csvContent = [header, ...lines]
+    .map((line) => line.map(toCsvValue).join(';'))
+    .join('\n');
+
+  const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', fileName);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
 function useDataset(setState: (state: DatasetState) => void) {
   return async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -391,6 +440,7 @@ function DatasetPanel({
 export default function App() {
   const [commandeState, setCommandeState] = useState<DatasetState>(INITIAL_DATASET);
   const [badgesState, setBadgesState] = useState<DatasetState>(INITIAL_DATASET);
+  const [statusFilter, setStatusFilter] = useState<Record<MatchStatus, boolean>>({ ...INITIAL_STATUS_FILTER });
 
   const handleCommandeChange = useDataset(setCommandeState);
   const handleBadgesChange = useDataset(setBadgesState);
@@ -402,7 +452,48 @@ export default function App() {
     return computeComparison(commandeState.people, badgesState.people);
   }, [commandeState.people, badgesState.people]);
 
+  const activeStatuses = useMemo(
+    () => STATUS_ORDER.filter((status) => statusFilter[status]),
+    [statusFilter]
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!comparison) {
+      return [];
+    }
+    if (!activeStatuses.length) {
+      return [];
+    }
+    return comparison.rows.filter((row: MatchRow) => statusFilter[row.status]);
+  }, [activeStatuses.length, comparison, statusFilter]);
+
   const hasDifferences = comparison?.rows.some((row: MatchRow) => row.status !== 'match');
+  const anomaliesCount = comparison
+    ? comparison.rows.filter((row: MatchRow) => row.status !== 'match').length
+    : 0;
+  const filteredRowCount = filteredRows.length;
+  const allStatusesActive = STATUS_ORDER.every((status) => statusFilter[status]);
+
+  const handleToggleStatus = useCallback((status: MatchStatus) => {
+    setStatusFilter((previous) => ({
+      ...previous,
+      [status]: !previous[status]
+    }));
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    setStatusFilter({ ...INITIAL_STATUS_FILTER });
+  }, []);
+
+  const handleDownloadCsv = useCallback(() => {
+    if (!comparison || anomaliesCount === 0) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const rowsToExport = comparison.rows.filter((row: MatchRow) => row.status !== 'match');
+    downloadRowsAsCsv(rowsToExport, `checkbadges-anomalies-${timestamp}.csv`);
+  }, [anomaliesCount, comparison]);
 
   return (
     <main className="layout">
@@ -435,10 +526,16 @@ export default function App() {
           {comparison && (
             <div className="summary">
               {STATUS_ORDER.map((status) => (
-                <div key={status} className="summary__item">
+                <button
+                  key={status}
+                  type="button"
+                  className="summary__item"
+                  onClick={() => handleToggleStatus(status)}
+                  aria-pressed={statusFilter[status]}
+                >
                   <span className={`status status--${status}`}>{STATUS_LABELS[status]}</span>
                   <strong>{comparison.summary[status]}</strong>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -449,32 +546,71 @@ export default function App() {
         {comparison && comparison.rows.length === 0 && <p>Aucune donnée à comparer pour le moment.</p>}
 
         {comparison && comparison.rows.length > 0 && (
-          <>
-            {!hasDifferences && <p className="panel__info">Tout est cohérent : aucune anomalie détectée.</p>}
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Statut</th>
-                    <th>Prénom</th>
-                    <th>Nom</th>
-                    <th>Détails</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comparison.rows.map((row: MatchRow) => (
-                    <tr key={row.id} className={`row--${row.status}`}>
-                      <td>
-                        <span className={`status status--${row.status}`}>{STATUS_LABELS[row.status]}</span>
-                      </td>
-                      <td>{row.prenom}</td>
-                      <td>{row.nom}</td>
-                      <td>{row.details}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="panel__actions">
+            <p className="panel__info panel__info--muted">
+              {activeStatuses.length === 0
+                ? 'Sélectionnez au moins un statut pour afficher les résultats.'
+                : `Résultats affichés : ${filteredRowCount}`}
+            </p>
+            <div className="panel__actions-buttons">
+              <button
+                type="button"
+                className="reset-button"
+                onClick={handleResetFilters}
+                disabled={allStatusesActive}
+              >
+                Réinitialiser les filtres
+              </button>
+              <button
+                type="button"
+                className="action-button"
+                onClick={handleDownloadCsv}
+                disabled={anomaliesCount === 0}
+              >
+                Télécharger les anomalies (CSV)
+              </button>
             </div>
+          </div>
+        )}
+
+        {comparison && comparison.rows.length > 0 && (
+          <>
+            {!hasDifferences && (
+              <p className="panel__info panel__info--success">Tout est cohérent : aucune anomalie détectée.</p>
+            )}
+            {activeStatuses.length > 0 && filteredRowCount === 0 && (
+              <p className="panel__info panel__info--muted">
+                Aucun résultat ne correspond aux statuts sélectionnés.
+              </p>
+            )}
+            {activeStatuses.length > 0 && filteredRowCount > 0 && (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Statut</th>
+                      <th>Prénom</th>
+                      <th>Nom</th>
+                      <th>Origine</th>
+                      <th>Détails</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row: MatchRow) => (
+                      <tr key={row.id} className={`row--${row.status}`}>
+                        <td>
+                          <span className={`status status--${row.status}`}>{STATUS_LABELS[row.status]}</span>
+                        </td>
+                        <td>{row.prenom}</td>
+                        <td>{row.nom}</td>
+                        <td>{DATASET_LABELS[row.source]}</td>
+                        <td>{row.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         )}
       </section>
