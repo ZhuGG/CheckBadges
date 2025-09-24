@@ -413,13 +413,14 @@ async function extractPdfLines(file: File): Promise<PdfTextExtraction> {
       continue;
     }
 
-    const filterMatches = Array.from(dictionary.matchAll(/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9\.]+))/g));
     const filters: string[] = [];
+    const filterRegex = /\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9\.]+))/g;
+    let filterMatch: RegExpExecArray | null;
 
-    filterMatches.forEach((filterMatch) => {
+    while ((filterMatch = filterRegex.exec(dictionary)) !== null) {
       if (filterMatch[2]) {
         filters.push(filterMatch[2]);
-        return;
+        continue;
       }
       if (filterMatch[1]) {
         filterMatch[1]
@@ -428,7 +429,7 @@ async function extractPdfLines(file: File): Promise<PdfTextExtraction> {
           .filter((token) => token.length > 0)
           .forEach((token) => filters.push(token));
       }
-    });
+    }
 
     let streamData = stringToUint8Array(rawStream);
 
