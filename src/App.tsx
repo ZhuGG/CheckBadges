@@ -1,6 +1,4 @@
 import { useCallback, useMemo, useState, type ChangeEvent, type MouseEvent } from 'react';
-import Papa from 'papaparse';
-import type { ParseError, ParseResult } from 'papaparse';
 
 type DatasetKind = 'commande' | 'badges';
 
@@ -45,9 +43,6 @@ const INITIAL_DATASET: DatasetState = {
   people: [],
   errors: []
 };
-
-const FIRST_NAME_KEYS = ['prenom', 'prenoms', 'first_name', 'firstname', 'first', 'given_name'];
-const LAST_NAME_KEYS = ['nom', 'noms', 'last_name', 'lastname', 'last', 'surname', 'family_name'];
 
 const STATUS_LABELS: Record<MatchStatus, string> = {
   match: 'Correspondance',
@@ -153,11 +148,6 @@ function normalizeText(value: string): string {
     .toLowerCase();
 }
 
-function cleanCell(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return String(value).trim();
-}
-
 function normalizeHeader(value: string): string {
   return value
     .normalize('NFD')
@@ -173,96 +163,6 @@ function normalizeToken(value: string): string {
 
 const HONORIFIC_TOKENS = new Set(RAW_HONORIFIC_TOKENS.map((token) => normalizeToken(token)));
 const BANNED_TOKENS = new Set(RAW_BANNED_TOKENS.map((token) => normalizeToken(token)));
-
-function findMatchingKey(keys: string[], candidates: string[]): string | undefined {
-  return keys.find((key) => candidates.includes(key)) ?? keys.find((key) => candidates.some((candidate) => key.includes(candidate)));
-}
-
-function parseWithHeaders(rows: Record<string, unknown>[], keys: string[] | undefined): HeaderOutcome {
-  const normalizedKeys = (keys ?? []).map(normalizeHeader);
-  const effectiveKeys = normalizedKeys.length ? normalizedKeys : Object.keys(rows[0] ?? {}).map(normalizeHeader);
-  const firstKey = findMatchingKey(effectiveKeys, FIRST_NAME_KEYS);
-  const lastKey = findMatchingKey(effectiveKeys, LAST_NAME_KEYS);
-
-  if (!firstKey || !lastKey) {
-    return {
-      people: [],
-      errors: ['Impossible d\'identifier les colonnes prénom et nom. Vérifiez la première ligne de votre fichier.'],
-      hasNameColumns: false
-    };
-  }
-
-  const errors: string[] = [];
-  const people: Person[] = [];
-
-  rows.forEach((row, index) => {
-    const prenom = cleanCell(row[firstKey]);
-    const nom = cleanCell(row[lastKey]);
-
-    if (!prenom && !nom) {
-      return;
-    }
-
-    if (!prenom || !nom) {
-      errors.push(`Ligne ${index + 2}: valeur manquante pour ${!prenom ? 'le prénom' : 'le nom'}.`);
-      return;
-    }
-
-    people.push({
-      prenom,
-      nom,
-      normalized: normalizeText(`${prenom} ${nom}`),
-      lineNumber: index + 2
-    });
-  });
-
-  return { people, errors, hasNameColumns: true };
-}
-
-function parseWithoutHeaders(rows: unknown[][]): HeaderOutcome {
-  const errors: string[] = [];
-  const people: Person[] = [];
-
-  if (!rows.length) {
-    return { people, errors: ['Le fichier est vide.'], hasNameColumns: false };
-  }
-
-  let startIndex = 0;
-  const headerGuess = rows[0]?.map((cell) => normalizeHeader(cleanCell(cell)));
-  const headerLooksValid = headerGuess?.some((cell) => FIRST_NAME_KEYS.includes(cell)) && headerGuess?.some((cell) => LAST_NAME_KEYS.includes(cell));
-
-  if (headerLooksValid) {
-    startIndex = 1;
-  }
-
-  for (let index = startIndex; index < rows.length; index += 1) {
-    const row = rows[index] ?? [];
-    const prenom = cleanCell(row[0]);
-    const nom = cleanCell(row[1]);
-
-    if (!prenom && !nom) {
-      continue;
-    }
-
-    if (!prenom || !nom) {
-      errors.push(`Ligne ${index + 1}: la colonne ${!prenom ? 'prénom' : 'nom'} est vide.`);
-      continue;
-    }
-
-    people.push({
-      prenom,
-      nom,
-      normalized: normalizeText(`${prenom} ${nom}`),
-      lineNumber: index + 1
-    });
-  }
-
-  if (!people.length) {
-    errors.push('Aucune ligne exploitable n\'a été trouvée (les deux premières colonnes doivent contenir prénom et nom).');
-  }
-
-  return { people, errors, hasNameColumns: true };
-}
 
 function isPdfFile(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -694,65 +594,6 @@ async function parsePdfFile(file: File): Promise<Omit<DatasetState, 'loading'>> 
   };
 }
 
-function parseCsvFile(file: File): Promise<Omit<DatasetState, 'loading'>> {
-  return new Promise((resolve) => {
-    Papa.parse<Record<string, unknown>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: normalizeHeader,
-      complete: (result: ParseResult<Record<string, unknown>>) => {
-        const headerOutcome = parseWithHeaders(result.data, result.meta.fields as string[] | undefined);
-
-        if (headerOutcome.hasNameColumns && headerOutcome.people.length > 0) {
-          resolve({
-            fileName: file.name,
-            people: headerOutcome.people,
-            errors: headerOutcome.errors
-          });
-          return;
-        }
-
-        Papa.parse<unknown[]>(file, {
-          header: false,
-          skipEmptyLines: true,
-          complete: (fallback: ParseResult<unknown[]>) => {
-            const fallbackRows = (fallback.data as unknown[]).map((row) => {
-              if (Array.isArray(row)) {
-                return row;
-              }
-              if (row && typeof row === 'object') {
-                return Object.values(row);
-              }
-              return [row];
-            });
-
-            const fallbackOutcome = parseWithoutHeaders(fallbackRows);
-            resolve({
-              fileName: file.name,
-              people: fallbackOutcome.people,
-              errors: [...headerOutcome.errors, ...fallbackOutcome.errors]
-            });
-          },
-          error: (error: ParseError) => {
-            resolve({
-              fileName: file.name,
-              people: headerOutcome.people,
-              errors: [...headerOutcome.errors, `Erreur lors de la lecture sans entête: ${error.message}`]
-            });
-          }
-        });
-      },
-      error: (error: ParseError) => {
-        resolve({
-          fileName: file.name,
-          people: [],
-          errors: [`Impossible de lire ${file.name}: ${error.message}`]
-        });
-      }
-    });
-  });
-}
-
 function computeComparison(commande: Person[], badges: Person[]): Comparison {
   const rows: MatchRow[] = [];
   const summary: Record<MatchStatus, number> = {
@@ -886,6 +727,16 @@ function useDataset(setState: (state: DatasetState) => void) {
       return;
     }
 
+    if (!isPdfFile(file)) {
+      setState({
+        fileName: file.name,
+        loading: false,
+        people: [],
+        errors: ['Format de fichier non pris en charge. Veuillez importer un PDF.']
+      });
+      return;
+    }
+
     setState({
       fileName: file.name,
       loading: true,
@@ -894,7 +745,7 @@ function useDataset(setState: (state: DatasetState) => void) {
     });
 
     try {
-      const result = await (isPdfFile(file) ? parsePdfFile(file) : parseCsvFile(file));
+      const result = await parsePdfFile(file);
       setState({
         fileName: result.fileName,
         loading: false,
@@ -930,10 +781,10 @@ function DatasetPanel({
         <p className="panel__description">{description}</p>
       </header>
       <label className="file-input">
-        <span>Sélectionner un fichier (CSV ou PDF)</span>
+        <span>Sélectionner un fichier PDF</span>
         <input
           type="file"
-          accept=".csv,.tsv,.txt,.pdf"
+          accept=".pdf"
           onChange={onChange}
           onClick={(event: MouseEvent<HTMLInputElement>) => {
             event.currentTarget.value = '';
@@ -1028,13 +879,13 @@ export default function App() {
       <div className="layout__grid">
         <DatasetPanel
           title="Bon de commande"
-          description="Fichier exporté depuis votre CRM (CSV) ou bon de commande PDF avec la liste des badges. Les colonnes prénom et nom doivent être clairement identifiables."
+          description="Bon de commande PDF contenant la liste des badges. Les colonnes prénom et nom doivent être clairement identifiables."
           state={commandeState}
           onChange={handleCommandeChange}
         />
         <DatasetPanel
           title="Liste de badges"
-          description="Fichier généré après production des badges (CSV ou PDF). Les prénoms et noms sont analysés en ignorant la casse et les accents."
+          description="Fichier PDF généré après production des badges. Les prénoms et noms sont analysés en ignorant la casse et les accents."
           state={badgesState}
           onChange={handleBadgesChange}
         />
