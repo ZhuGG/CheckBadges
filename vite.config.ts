@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 
-const isGitHubPages = process.env.GITHUB_ACTIONS === 'true';
-
 export default defineConfig({
-  base: isGitHubPages ? '/CheckBadges/' : './',
+  // Always use relative asset URLs so the app works whether it is served from
+  // the repository subpath on GitHub Pages or from any other base URL.
+  base: './',
   plugins: [react()],
   build: {
     // Target a broadly supported ECMAScript version to avoid syntax errors (blank page)
